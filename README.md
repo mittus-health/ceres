@@ -1,36 +1,75 @@
+<div align="center">
+
+<img src="assets/logo.png" alt="Mittus logo" width="280" />
+
 # Ceres
 
-Serviço FastAPI da IA do Mittus: gera o **card diário** ("Make sense of the changes") e as **tarefas do checklist** a partir dos check-ins e do resultado do Eres. Escopo em [FEATURES.md](FEATURES.md#funcionalidades-e-dependências) (linha "Recomendação e checklist gerados pela IA").
+### The AI recommendation service of [Mittus](https://github.com/mittus-health/mittus-astronaut-health)
 
-O Ceres **não tem estado e não acessa o banco**. O backend envia os dados, o Ceres responde, e o backend grava em `check_in_insights` e `check_in_actions`.
+Insight card · checklist tasks · deterministic fallback
+
+[![NASA Space Apps 2026](https://img.shields.io/badge/NASA%20Space%20Apps-2026-0B3D91?style=for-the-badge)](https://www.spaceappschallenge.org/2026/challenges/health-monitoring-software/?tab=details)
+
+![Python](https://img.shields.io/badge/Python-3776AB?style=flat-square&logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)
+![Pydantic](https://img.shields.io/badge/Pydantic-E92063?style=flat-square&logo=pydantic&logoColor=white)
+![Tests](https://img.shields.io/badge/tests-63%20passing-2EA44F?style=flat-square)
+
+</div>
+
+---
+
+## About
+
+Ceres is the AI service behind [Mittus](https://www.spaceappschallenge.org/2026/challenges/health-monitoring-software/?tab=details), our entry for the **NASA Space Apps Challenge 2026** ("Create Health Monitoring Software for Astronauts on Space Missions"). Once a day, after the astronaut saves a check-in, Ceres produces:
+
+1. **The insight card** shown in **Make sense of the changes**: a title, a summary of what changed and a next step.
+2. **Up to two checklist tasks** for **My plan**: one based on the check-in and one based on the Eres fatigue forecast.
+
+Everything is written in English. All demo data is simulated, and the Eres forecast is experimental (trained on synthetic data). Nothing here is medical advice.
+
+Ceres is **stateless**. It does not access the database, does not call Eres and stores nothing. The backend sends the data, Ceres answers, and the backend persists the result.
 
 ```
-backend (NestJS) --POST /v1/recommendations--> Ceres
-   check_ins da sessão + resultado do Eres        |
-backend <------ insight + tasks -----------------+
-   grava check_in_insights e check_in_actions
+Front --saves check-in--> Backend (NestJS) --Eres--> forecast
+                              |
+                              |  POST /v1/recommendations
+                              |  { check_ins, forecast }
+                              v
+                           Ceres (FastAPI) ----> Command Code (language model)
+                              |
+                              |  { insight, tasks }
+                              v
+                Backend writes check_in_insights and check_in_actions
 ```
 
-## O que é código e o que é modelo
+## What is code and what is the model
 
-- **Código:** os números (último check-in contra a média de até 7 anteriores, sem o registro atual) e **quais tarefas existem**, com `action_code`, `reason_code` e regra. O modelo nunca escolhe nem cria tarefas.
-- **Modelo de linguagem:** só redige o título, o resumo e a próxima etapa do card e os títulos das tarefas. O provedor é o **Command Code** (API compatível com OpenAI, modelo `deepseek/deepseek-v4-pro`). O modelo raciocina antes de responder, então a chamada leva de 7 a 20 s. A estrutura do código está em [ceres.md](ceres.md#arquitetura).
-- **Texto de reserva:** sem gerador, ou se ele falhar, demorar mais que 8 s ou devolver algo inválido, o Ceres usa texto determinístico com os mesmos números. `insight.source` diz `ai` ou `fallback`.
+| Responsibility | Who does it |
+| --- | --- |
+| Compare the latest check-in with the mean of up to 7 previous ones (current record excluded) | **Code** |
+| Decide which tasks exist, plus `action_code` and `reason_code` | **Code** (versioned rules) |
+| Write the card title, summary, next step and task titles | **Language model** |
+| Pick, create or remove tasks; give medical advice; suggest contacting crew or medical staff | **Nobody in Ceres.** `contact_crew` and `contact_medical` are never emitted here |
 
-## Tarefas devolvidas
+If the model is not configured, fails, exceeds the timeout (45 s by default) or returns text outside the limits, Ceres answers with **deterministic fallback text** built from the same numbers. `insight.source` is `ai` or `fallback`; the response contract is identical in both cases.
 
-| `task_key` | Origem | Quando |
+The model only receives numbers that were already computed (indicator values, means, deltas and the Eres probability). It never receives the astronaut's free-text description or any identifier.
+
+## Tasks returned
+
+| `task_key` | Source | When it exists |
 | --- | --- | --- |
-| `check_in_follow_up` | `check_in` | Sempre. `recheck` se o sono caiu 1 h ou mais, ou a fadiga subiu 1 ponto ou mais, contra a média; senão `monitor`. |
-| `forecast_follow_up` | `forecast` | Só se o Eres devolveu `ready`. `recheck` com probabilidade ≥ 0,5 (regra `demo-follow-up-v1`, a mesma do Check-in Actions), senão `monitor`. |
+| `check_in_follow_up` | `check_in` | Always. `recheck` if sleep is 1 h or more below the mean, or fatigue is 1 point or more above it; otherwise `monitor`. |
+| `forecast_follow_up` | `forecast` | Only when Eres returned `ready`. `recheck` at probability ≥ 0.5 (rule `demo-follow-up-v1`, the same as Check-in Actions); otherwise `monitor`. |
 
-Sem resultado do Eres (ausente, `insufficient_history` ou `unavailable`), o card e a tarefa do check-in continuam saindo só com os check-ins. Os limiares são da demonstração com dados sintéticos e não são clínicos. O Ceres não gera `contact_crew` nem `contact_medical`.
+Without an Eres result (absent, `insufficient_history` or `unavailable`) the card and the check-in task are still produced from the check-ins alone. Thresholds are for the demo with synthetic data and are **not clinical thresholds**.
 
-As tarefas fixas da tela (**Save today's check-in** e **Review the check-in insight**) não são da IA e ficam com o backend.
+The two fixed checklist tasks, **Save today's check-in** and **Review the check-in insight**, are not AI-generated; the backend creates them.
 
 ## API
 
-`POST /v1/recommendations`
+### `POST /v1/recommendations`
 
 ```json
 {
@@ -45,31 +84,99 @@ As tarefas fixas da tela (**Save today's check-in** e **Review the check-in insi
 }
 ```
 
-- `check_ins`: de 1 a 90, **do mais antigo ao mais recente**, uma por data; o último é o de hoje. Sem `description`, `session_id` ou timestamps: campos extras são rejeitados com `422`, e números em string também.
-- `forecast`: opcional. Aceita `ready`, `insufficient_history` ou `unavailable`.
-
-Resposta: `insight` (`title`, `summary`, `next_step`, `facts`, `source`, `generator`) e `tasks` (`task_key`, `title`, `source`, `kind`, `action_code`, `reason_code`, `ruleset_version`, `status`, `forecast_snapshot`). `insight` corresponde a uma linha de `check_in_insights` e cada item de `tasks` a uma de `check_in_actions` ([migrações](supabase/migrations)). Quem calcula o `evaluation_key` é o backend.
-
-`GET /health` responde `{"status": "ok"}`.
-
-## Configuração
-
-Variáveis de ambiente (arquivo `.env`, que o Git ignora; a chave é segredo do servidor):
-
-| Variável | Uso |
+| Field | Rule |
 | --- | --- |
-| `COMMANDCODE_API_KEY` | Chave da API. |
-| `COMMANDCODE_BASE_URL` | Por exemplo `https://api.commandcode.ai/provider/v1`. |
-| `COMMANDCODE_MODEL` | Por exemplo `deepseek/deepseek-v4-pro`. |
-| `CERES_GENERATOR_TIMEOUT_SECONDS` | Opcional. Tempo máximo do provedor antes do texto de reserva; padrão 45. |
+| `check_ins` | 1 to 90 items, **oldest to newest**, one per date. The last one is today's check-in. |
+| `sleep_hours` | Number from 0 to 24. |
+| `stress_level`, `mood_level`, `team_conflict_level` | Integers from 1 to 5. |
+| `fatigue` | Integer from 1 to 7. |
+| `forecast` | Optional. `ready` (with `probability_high_fatigue`, `model_version`, `predicted_at`), `insufficient_history` or `unavailable`. |
 
-Sem as três primeiras, o Ceres roda só com o texto de reserva. As chamadas ao provedor usam o repositório de certificados do sistema (`truststore`), para funcionar em redes que inspecionam HTTPS.
+Do not send `description`, `session_id` or timestamps: **extra fields are rejected with `422`**, and so are numbers sent as strings.
 
-## Rodar
+The `200` response has:
+
+- `insight`: `title`, `summary`, `next_step`, `facts`, `source`, `generator`. Title ≤ 80 characters, summary ≤ 400, next step ≤ 200.
+- `tasks`: each with `task_key`, `title` (≤ 100), `source`, `kind`, `action_code`, `reason_code`, `ruleset_version`, `status` and `forecast_snapshot`.
+
+With a single check-in, `facts.comparison` is `no_history` and the baseline fields are `null`. A model failure is never an error: it becomes `source: "fallback"` with HTTP `200`. Invalid bodies return `422`; unexpected errors return `500`.
+
+The full contract, examples and backend integration notes are in [ceres.md](ceres.md).
+
+### `GET /health`
+
+Returns `{"status": "ok"}`.
+
+## Architecture
+
+Dependencies always point inward: `api` and `infrastructure` depend on `application`, which depends on `domain`. The domain imports no framework.
+
+```
+app/
+  domain/          entities, facts calculation, task policies (no I/O)
+  application/     BuildRecommendation use case, ports, text writers, validation
+  infrastructure/  Command Code client, prompt, LLM text writer, settings
+  api/             FastAPI routes and Pydantic schemas
+  container.py     composition root
+  main.py          create_app
+```
+
+## Configuration
+
+Environment variables, read from the process or from a `.env` file (ignored by Git; the key is a server secret):
+
+| Variable | Use |
+| --- | --- |
+| `COMMANDCODE_API_KEY` | Command Code API key. |
+| `COMMANDCODE_BASE_URL` | OpenAI-compatible base URL, e.g. `https://api.commandcode.ai/provider/v1`. |
+| `COMMANDCODE_MODEL` | Model name, e.g. `deepseek/deepseek-v4-pro`. |
+| `CERES_GENERATOR_TIMEOUT_SECONDS` | Optional. Provider timeout before falling back. Default 45. |
+
+Without the first three, Ceres runs on fallback text only. Provider calls use the system certificate store (`truststore`) so they work behind HTTPS-inspecting networks.
+
+## Run
+
+Requires Python 3.12 or newer.
 
 ```bash
 python -m venv .venv
 .venv/Scripts/python -m pip install -e ".[dev]"   # Linux/macOS: .venv/bin/python
 .venv/Scripts/python -m uvicorn app.main:app --env-file .env --port 8000
+```
+
+Run the tests (no network calls):
+
+```bash
 .venv/Scripts/python -m pytest
 ```
+
+## Deployment notes
+
+- Single stateless process; several instances are fine.
+- The language model can take 6 to 23 s, with peaks up to the 45 s timeout. The backend's HTTP client needs a timeout **above 45 s** (60 s suggested), and the front end should not block on it.
+- Ceres has **no authentication**. Keep it on an internal network reachable only by the backend, never from the browser.
+
+## Use of AI (for the submission)
+
+- A language model (`deepseek/deepseek-v4-pro` through Command Code) writes the card title, summary and next step and the titles of the two AI tasks.
+- It does not decide which tasks exist or which action is suggested, and it gives no medical advice. Versioned rules in code do that.
+- Inputs are simulated numbers only. The Eres forecast is experimental and was trained on synthetic data.
+- On any failure the app shows rule-generated text with the same numbers, and `source` records which one was used.
+
+## Related
+
+- [FEATURES.md](FEATURES.md) — MVP features, routes and database
+- [ceres.md](ceres.md) — integration contract with the Mittus backend
+- [REQUISITOS-DE-ENTREGA.md](REQUISITOS-DE-ENTREGA.md) — submission requirements
+- [Database migrations](supabase/migrations)
+
+## Team
+
+<p align="center">
+  <a href="https://github.com/luismede"><img src="assets/team/luismede.png" width="125" alt="luismede — Daily check-in backend" /></a>
+  <a href="https://github.com/Neveslv"><img src="assets/team/Neveslv.png" width="125" alt="Neveslv — Check-in Actions and deploy" /></a>
+  <a href="https://github.com/luibiondo"><img src="assets/team/luibiondo.png" width="125" alt="luibiondo — Frontend" /></a>
+  <a href="https://github.com/RodrigoBolgheroni"><img src="assets/team/RodrigoBolgheroni.png" width="125" alt="RodrigoBolgheroni — Machine Learning (Eres)" /></a>
+  <a href="https://github.com/giumanara"><img src="assets/team/giumanara.png" width="125" alt="giumanara — AI recommendation (Ceres)" /></a>
+  <a href="https://github.com/gabkbenfica"><img src="assets/team/gabkbenfica.png" width="125" alt="gabkbenfica — Design" /></a>
+</p>

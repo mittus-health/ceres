@@ -73,19 +73,6 @@ app/
   main.py            create_app(settings, use_case)
 ```
 
-Como cada princípio aparece:
-
-| Princípio | Onde |
-| --- | --- |
-| **S** responsabilidade única | Cada classe faz uma coisa: calcular fatos, decidir tarefas, escrever texto, validar texto, falar HTTP com o modelo, montar o prompt, mapear o contrato. |
-| **O** aberto/fechado | Uma tarefa nova é uma nova `TaskPolicy` registrada em `container.py`; `TaskPlanner` não muda. Um provedor novo é um novo `ChatModel`; nada acima dele muda. |
-| **L** substituição de Liskov | `TemplateTextWriter`, `LlmTextWriter` e `GuardedTextWriter` são intercambiáveis como `TextWriter`. O `GuardedTextWriter` é um decorator que se usa onde um escritor é esperado. |
-| **I** segregação de interfaces | Portas pequenas: `TextWriter` tem um método (`write`), `ChatModel` tem um (`complete`) e `TaskPolicy` tem um (`plan`). |
-| **D** inversão de dependência | O caso de uso recebe `FactsCalculator`, `TaskPlanner` e `TextWriter` pelo construtor e não conhece HTTP nem o modelo. `LlmTextWriter` depende da porta `ChatModel`, não do Command Code. |
-
-**Repository.** O Ceres não tem repository porque não tem persistência: o backend envia os check-ins e grava o resultado. Se o Ceres passar a ler `check_ins` ou gravar `check_in_insights`, a porta entra em `application/ports.py` e a implementação em `infrastructure/`, sem tocar no caso de uso.
-
-**Trocar o modelo.** Para outro provedor, escreva uma classe com `id` e `complete(system, user)` em `infrastructure/llm/` e troque `build_chat_model` em `container.py`.
 
 ## Contrato da integração
 
