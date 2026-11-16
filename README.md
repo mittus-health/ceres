@@ -172,51 +172,11 @@ Run the tests (no network calls):
 
 ## Team
 
-<table align="center">
-  <tr>
-    <td align="center" width="170">
-      <a href="https://github.com/luismede">
-        <img src="https://github.com/luismede.png?size=200" width="100" alt="@luismede" /><br />
-        <sub><b>@luismede</b></sub>
-      </a><br />
-      <sub>Daily check-in backend</sub>
-    </td>
-    <td align="center" width="170">
-      <a href="https://github.com/Neveslv">
-        <img src="https://github.com/Neveslv.png?size=200" width="100" alt="@Neveslv" /><br />
-        <sub><b>@Neveslv</b></sub>
-      </a><br />
-      <sub>Check-in Actions and deploy</sub>
-    </td>
-    <td align="center" width="170">
-      <a href="https://github.com/luibiondo">
-        <img src="https://github.com/luibiondo.png?size=200" width="100" alt="@luibiondo" /><br />
-        <sub><b>@luibiondo</b></sub>
-      </a><br />
-      <sub>Frontend</sub>
-    </td>
-  </tr>
-  <tr>
-    <td align="center" width="170">
-      <a href="https://github.com/RodrigoBolgheroni">
-        <img src="https://github.com/RodrigoBolgheroni.png?size=200" width="100" alt="@RodrigoBolgheroni" /><br />
-        <sub><b>@RodrigoBolgheroni</b></sub>
-      </a><br />
-      <sub>Machine Learning (Eres)</sub>
-    </td>
-    <td align="center" width="170">
-      <a href="https://github.com/giumanara">
-        <img src="https://github.com/giumanara.png?size=200" width="100" alt="@giumanara" /><br />
-        <sub><b>@giumanara</b></sub>
-      </a><br />
-      <sub>AI recommendation (Ceres)</sub>
-    </td>
-    <td align="center" width="170">
-      <a href="https://github.com/gabkbenfica">
-        <img src="https://github.com/gabkbenfica.png?size=200" width="100" alt="@gabkbenfica" /><br />
-        <sub><b>@gabkbenfica</b></sub>
-      </a><br />
-      <sub>Design</sub>
-    </td>
-  </tr>
-</table>
+<p align="center">
+  <a href="https://github.com/luismede"><img src="assets/team/luismede.png" width="125" alt="luismede — Daily check-in backend" /></a>
+  <a href="https://github.com/Neveslv"><img src="assets/team/Neveslv.png" width="125" alt="Neveslv — Check-in Actions and deploy" /></a>
+  <a href="https://github.com/luibiondo"><img src="assets/team/luibiondo.png" width="125" alt="luibiondo — Frontend" /></a>
+  <a href="https://github.com/RodrigoBolgheroni"><img src="assets/team/RodrigoBolgheroni.png" width="125" alt="RodrigoBolgheroni — Machine Learning (Eres)" /></a>
+  <a href="https://github.com/giumanara"><img src="assets/team/giumanara.png" width="125" alt="giumanara — AI recommendation (Ceres)" /></a>
+  <a href="https://github.com/gabkbenfica"><img src="assets/team/gabkbenfica.png" width="125" alt="gabkbenfica — Design" /></a>
+</p>
